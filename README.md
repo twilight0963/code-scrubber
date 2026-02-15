@@ -1,2 +1,3 @@
-# code-scrubber
-An API-Leak Prevention Extension for VSCode.
+# Code-Scrubber
+
+### <b>!WIP!</b>
