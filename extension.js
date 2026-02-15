@@ -2,6 +2,19 @@
 // Import the module and reference it with the alias vscode in your code below
 const vscode = require('vscode');
 
+// Shannon Entropy function.
+function entropy(str) {
+  const len = str.length
+ 
+  // Make a frequency map.
+  const frequencies = Array.from(str)
+    .reduce((freq, c) => (freq[c] = (freq[c] || 0) + 1) && freq, {})
+ 
+  // Sum the frequency of each character to obtain randomness.
+  return Object.values(frequencies)
+    .reduce((sum, f) => sum - f/len * Math.log2(f/len), 0)
+}
+
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 
@@ -9,22 +22,38 @@ const vscode = require('vscode');
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
+	// Read changes whenever a file is saved 
+	let saveListener = vscode.workspace.onDidSaveTextDocument((document) => {
+		const fileName = document.fileName;
+		// Ignore compiled code to speed up
+		const ignoredExtensions = ['.exe', '.class', '.o', '.out', '.bin', '.pyc'];
+		if (ignoredExtensions.some(ext => document.fileName.endsWith(ext))) {
+			return;
+		}
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "code-scrubber" is now active!');
+		// Look for all strings in document
+		const re = /"(.*?)"/g;
+		const strings = document.getText().match(re);
+		const isGibberish = require('is-gibberish')
+		if (strings == null) {
+			return;
+		}
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with  registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('code-scrubber.helloWorld', function () {
-		// The code you place here will be executed every time your command is executed
+		// Check if any of the strings are credentials
+		const THRESHOLD = 4;
+		const MIN_LEN = 12;
 
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from code-scrubber!');
+		// Filter out strings that are more random than threshold.
+		const credentials = strings.filter(s => {
+			const cleaned = s.replace("\"","");
+			return cleaned.length > MIN_LEN && entropy(cleaned) > THRESHOLD && isGibberish(cleaned);
+		});
+
+		if (credentials.length > 0)
+			vscode.window.showInformationMessage("Found credentials: " + credentials.join(", "));
 	});
 
-	context.subscriptions.push(disposable);
+	context.subscriptions.push(saveListener);
 }
 
 // This method is called when your extension is deactivated
