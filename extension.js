@@ -49,8 +49,12 @@ function activate(context) {
 			return cleaned.length > MIN_LEN && entropy(cleaned) > THRESHOLD && isGibberish(cleaned);
 		});
 
-		if (credentials.length > 0)
+		// If atleast one credential was found, do the following
+		if (credentials.length > 0) {
+			// TODO: Only shows as information for now
+			// Should show a proper
 			vscode.window.showInformationMessage("Found credentials: " + credentials.join(", "));
+		}
 	});
 
 	context.subscriptions.push(saveListener);
