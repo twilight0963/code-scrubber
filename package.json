@@ -13,7 +13,10 @@
     "onStartupFinished"
   ],
   "main": "./extension.js",
-  "contributes": {},
+  "contributes": {
+    "commands" : [
+    ]
+  },
   "scripts": {
     "lint": "eslint .",
     "pretest": "npm run lint",
