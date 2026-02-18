@@ -14,7 +14,7 @@ function detectCredentials(document, diagnosticCollection) {
 	}
 	const documentText = document.getText()
 	// Check if file should be ignored
-	const findIgnore = /ignore\.code-scrubber\.diagnostics\.file.*/ // SUPRESS MESSAGE
+	const findIgnore = /ignore\.code-scrubber\.diagnostics.*/ // SUPRESS MESSAGE
 	if (documentText.match(findIgnore)) {
 		// If suppress message in file, ignore the entire file
 		return
@@ -23,7 +23,7 @@ function detectCredentials(document, diagnosticCollection) {
 	const findString = /"\S+"/g; // Translates to longest string without whitespace surrounded by ""
 	const strings = documentText.match(findString);
 
-	if (strings == null) {
+	if (!strings) {
 		// Do not continue if no strings were found
 		return;
 	}
@@ -40,7 +40,7 @@ function detectCredentials(document, diagnosticCollection) {
 	});
 
 	// If atleast one credential was found, do the following
-	if (credentials.length > 0) {
+	if (credentials.length() > 0) {
 		// List of found problems, initialized as empty
 		const diagnostics = [];
 		credentials.forEach(credential => {

@@ -20,7 +20,6 @@ class CodeActionProvider {
     };
     const commentChar = commentCharacters[document.languageId] || commentCharacters['default']; // Default to '//' when a map is not given
     ignoreAction.edit.insert(document.uri, new vscode.Position(0,0), commentChar+' ignore.code-scrubber.diagnostics\n'); // Add ignore code to the start of the code
-    ignoreAction.edit.insert(document.uri, document.
     return [
       ignoreAction, // For "Ignore for this file" fix
     ]

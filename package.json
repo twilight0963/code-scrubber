@@ -1,8 +1,11 @@
 {
-  "name": "code-scrubber",
-  "displayName": "code-scrubber",
+  "name": "codescrubber",
+  "displayName": "Code-Scrubber",
+  "repository": {
+    "url": "https://github.com/twilight0963/code-scrubber"
+  },
   "description": "Code privacy and credential leak helper.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.109.0"
   },
@@ -24,13 +27,14 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
+    "@types/node": "25.x",
     "@types/vscode": "^1.109.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
-    "eslint": "^9.39.2"
+    "eslint": "^10.0.0"
   },
   "dependencies": {
     "is-gibberish": "^0.1.0"
-  }
+  },
+  "publisher": "twilight0963"
 }

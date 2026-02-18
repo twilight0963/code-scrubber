@@ -19,7 +19,7 @@ function activate(context) {
 	const refactorDiagnostic = new refactorProvider.CodeActionProvider();
 
 	// Subscribe the refactor to menu
-	context.subscriptions.push(vscode.languages.registerCodeActionsProvider("*",refactorDiagnostic, {
+	context.subscriptions.push(vscode.languages.registerCodeActionsProvider("*", refactorDiagnostic, {
 		providedCodeActionKinds: refactorProvider.CodeActionProvider.providedCodeActionKinds
 	}));
 	// Read once on startup
@@ -28,14 +28,16 @@ function activate(context) {
 	// Read changes whenever a file is saved 
 	let saveListener = vscode.workspace.onDidSaveTextDocument((document) => scanner.detectCredentials(document, diagnosticCollection));
 
-	
-
 	// Save the listener
 	context.subscriptions.push(saveListener);
+	vscode.commands.executeCommand("twilight0963.codescrubber");
 }
 
 // This method is called when your extension is deactivated
-function deactivate() {}
+function deactivate() {
+	// Remove all reported problems
+	vscode.workspace.textDocuments.forEach((document) => diagnosticCollection.delete(document.uri))
+}
 
 module.exports = {
 	activate,
