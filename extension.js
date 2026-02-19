@@ -5,8 +5,6 @@ const scanner = require('./functions/credential-scanner');
 const refactorProvider = require("./classes/RefactorProvider");
 
 
-
-
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 
@@ -30,7 +28,7 @@ function activate(context) {
 
 	// Save the listener
 	context.subscriptions.push(saveListener);
-	vscode.commands.executeCommand("twilight0963.codescrubber");
+	vscode.commands.executeCommand("twilight0963.codescrubber"); // .vsix package needs this for some reason... I could not tell you why.
 }
 
 // This method is called when your extension is deactivated

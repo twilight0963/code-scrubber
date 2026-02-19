@@ -38,15 +38,17 @@ function detectCredentials(document, diagnosticCollection) {
 		const cleaned = s.replace("\"", "").toLowerCase();
 		return cleaned.length > MIN_LEN && ent.shannonEntropy(cleaned) > THRESHOLD && isGibberish(cleaned);
 	});
-
+	if (credentials == null) {
+		return;
+	}
 	// If atleast one credential was found, do the following
-	if (credentials.length() > 0) {
+	if (credentials.length > 0) {
 		// List of found problems, initialized as empty
 		const diagnostics = [];
 		credentials.forEach(credential => {
 			const range = new vscode.Range(
-				document.positionAt(document.getText().indexOf(credential)),
-				document.positionAt(document.getText().indexOf(credential) + credential.length)
+				document.positionAt(documentText.indexOf(credential)),
+				document.positionAt(documentText.indexOf(credential) + credential.length)
 			);
 			// Create the problem and push it to list
 			const diagnostic = new vscode.Diagnostic(range, `Potential unencrypted credential found: ${credential}`, vscode.DiagnosticSeverity.Information);
