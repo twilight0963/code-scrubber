@@ -40,9 +40,12 @@ class CodeActionProvider {
     const credential = document.getText(range); // Get the key itself from the document
     moveToEnv.edit.insert(file, new vscode.Position(0, 0), `${keyName} = ${credential}\n`); // Insert in format "KEY_xyz = ${key}" at the top of .env
     moveToEnv.edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), document.getText().replace(new RegExp(credential, "g"), keyName)); // Replace all key strings with the key itself
+
+    const uploadToAws = new vscode.CodeAction("Upload credential to AWS Secrets Manager and replace in file.", vscode.CodeActionKind.QuickFix);
     return [
       moveToEnv, // For "Move credential to .env and replace in file" fix
       ignoreAction, // For "Ignore credential leaks for this file." fix
+      uploadToAws // For "Upload credential to AWS Secrets Manager and replace in file." fix
     ]
   }
 }

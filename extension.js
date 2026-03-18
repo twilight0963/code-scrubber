@@ -3,6 +3,7 @@
 const vscode = require('vscode');
 const scanner = require('./functions/credential-scanner');
 const refactorProvider = require("./classes/RefactorProvider");
+const debugInfoCommand = require('./functions/debug-info-command');
 
 
 // This method is called when your extension is activated
@@ -28,7 +29,12 @@ function activate(context) {
 
 	// Save the listener
 	context.subscriptions.push(saveListener);
-	vscode.commands.executeCommand("twilight0963.codescrubber"); // .vsix package needs this for some reason... I could not tell you why.
+
+	// Command used for demos: shows the credential warning prompt.
+	const showPromptCommand = vscode.commands.registerCommand('twilight0963.codescrubber.showCredentialPrompt', async () => {
+		await debugInfoCommand.promptToSecureCredentials();
+	});
+	context.subscriptions.push(showPromptCommand);
 }
 
 // This method is called when your extension is deactivated

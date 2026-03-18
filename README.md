@@ -1,5 +1,7 @@
 # __Code-Scrubber__
 
+<a href="https://sarthaksahu03.github.io/code-scrubber_website/"><u>Go to website</u></a>
+
 ### A security enhancing extension that respects developer control and privacy
 
 Code-Scrubber is a *VSCode* and *VSCodium* extension that *locally* scans your workspace documents for hardcoded API keys and Credentials inside your code. Combatting API leaks in your GitHub repositories. The keys are scanned and reported on your local device for respecting privacy.
@@ -25,7 +27,9 @@ Code-Scrubber is a *VSCode* and *VSCodium* extension that *locally* scans your w
 
 ### Showcase:
 
-![VSCode Screenshot](./screenshots/image_1.png "Showcase")
+![VSCode Screenshot showcasing a cpp file with a credential detected](./screenshots/image_1.png "Showcase")
+
+![VSCode Screenshot Showcasing env](./screenshots/image_4.png "env Showcase")
 ---
 
 ### Key Highlighting and credential reporting:
