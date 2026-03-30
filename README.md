@@ -12,11 +12,12 @@ Code-Scrubber is a *VSCode* and *VSCodium* extension that *locally* scans your w
   - Locally scans potential API keys in strings in code using character entropy and length.
   - Potential keys are showcased in the "Problems" menu in VSCode UI.
   - Ability to ignore leaks for a file for removing annoying false positives, or for test code.
+  - Quick .env creation for dealing with potential leaks quickly.
+  - .env encryption with a key.
 
 ### Planned features:
-  - Quick .env creation for dealing with potential leaks quickly.
+
   - Refining key search algorithm by taking advantage of suspicious patterns via regex.
-  - .env encryption with a key.
   - AWS Integration.
 
 **Note that new features may be decided. Expect some issues, this project is very early in development!**
