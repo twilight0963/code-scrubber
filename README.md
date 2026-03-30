@@ -1,6 +1,6 @@
 # __Code-Scrubber__
 
-<a href="https://sarthaksahu03.github.io/code-scrubber_website/"><u>Go to website</u></a>
+<center><a href="https://sarthaksahu03.github.io/code-scrubber_website/"><u>Go to website</u></a></center>
 
 ### A security enhancing extension that respects developer control and privacy
 

@@ -17,13 +17,49 @@
   ],
   "main": "./extension.js",
   "contributes": {
-    "commands" : [
+    "commands": [
       {
         "command": "twilight0963.codescrubber.showCredentialPrompt",
         "title": "Code Scrubber: Show Credential Security Prompt",
         "category": "Code Scrubber"
+      },
+      {
+        "command": "twilight0963.codescrubber.encryptDotenv",
+        "title": "Encrypt .env file",
+        "category": "Code Scrubber",
+        "icon": "$(lock)"
+      },
+      {
+        "command": "twilight0963.codescrubber.decryptDotenv",
+        "title": "Decrypt .env.enc file",
+        "category": "Code Scrubber",
+        "icon": "$(key)"
       }
-    ]
+    ],
+    "menus": {
+      "scm/title": [
+        {
+          "command": "twilight0963.codescrubber.encryptDotenv",
+          "group": "navigation",
+          "when": "config.twilight0963.codescrubber.enableEncryption"
+        },
+        {
+          "command": "twilight0963.codescrubber.decryptDotenv",
+          "group": "navigation",
+          "when": "config.twilight0963.codescrubber.enableEncryption"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Code Scrubber",
+      "properties": {
+        "twilight0963.codescrubber.enableEncryption": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable the 'Encrypt .env file' button in the Source Control menu."
+        }
+      }
+    }
   },
   "scripts": {
     "lint": "eslint .",
