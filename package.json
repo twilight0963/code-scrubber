@@ -5,7 +5,7 @@
     "url": "https://github.com/twilight0963/code-scrubber"
   },
   "description": "Code privacy and credential leak helper.",
-  "version": "0.0.2",
+  "version": "1.0.0",
   "engines": {
     "vscode": "^1.109.0"
   },
