@@ -103,6 +103,9 @@ async function decryptDotenv() {
             vscode.window.showInformationMessage('.env.enc file deleted.');
         }
     } catch (err) {
+        if (err.message.includes('BAD_DECRYPT')) {
+            vscode.window.showErrorMessage('Incorrect password entered. Decryption failed.');
+        }
         vscode.window.showErrorMessage('Decryption failed: ' + err.message);
     }
 }

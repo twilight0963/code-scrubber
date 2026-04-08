@@ -9,9 +9,19 @@ function createMoveToEnvAction(document, range) {
         return null;
     }
 
-    const path = vscode.workspace.workspaceFolders[0].uri.fsPath + "/.env";
-    const file = vscode.Uri.file(path);
-    moveToEnv.edit.createFile(file, { ignoreIfExists: true });
+    const env_path = vscode.workspace.workspaceFolders[0].uri.fsPath + "/.env";
+    const env_file = vscode.Uri.file(env_path);
+    moveToEnv.edit.createFile(env_file, { ignoreIfExists: true });
+
+    const gitignore_path = vscode.workspace.workspaceFolders[0].uri.fsPath + "/.gitignore";
+    const gitignore_file = vscode.Uri.file(gitignore_path);
+    moveToEnv.edit.createFile(gitignore_file, { ignoreIfExists: true });
+
+    const gitignoreDoc = vscode.workspace.textDocuments.find(doc => doc.uri.fsPath === gitignore_path);
+    if (!gitignoreDoc || !gitignoreDoc.getText().includes(".env")) {
+        moveToEnv.edit.insert(gitignore_file, new vscode.Position(0, 0), ".env\n");
+    }
+
 
     // Make key name
     const lastSlash = document.fileName.lastIndexOf("/") || 0;
@@ -64,9 +74,9 @@ function createMoveToEnvAction(document, range) {
         }
     }
 
-    moveToEnv.edit.insert(file, new vscode.Position(0, 0), `${keyName} = ${credential}\n`);
+    moveToEnv.edit.insert(env_file, new vscode.Position(0, 0), `${keyName} = ${credential}\n`);
     // Replace all key strings with the key itself
-    moveToEnv.edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), document.getText().replace(new RegExp(credential, "g"), codeKeyName));
+    moveToEnv.edit.replace(document.uri, new vscode.Range(0, 0, document.lineCount, 0), document.getText().replaceAll(credential, codeKeyName));
 
     return moveToEnv;
 }

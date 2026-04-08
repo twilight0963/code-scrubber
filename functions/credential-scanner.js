@@ -8,8 +8,20 @@ function detectCredentials(document, diagnosticCollection) {
     diagnosticCollection.delete(document.uri)
     // Ignore compiled code and binary to speed up
     // Also ignore .env since thats the good practice
-    const ignoredExtensions = ['.exe', '.class', '.o', '.out', '.bin', '.pyc', '.env', '.gitignore', '.dmg'];
+    const ignoredExtensions = ['.exe', '.class', '.o', '.out', '.bin', '.pyc', '.env', '.dmg'];
     if (ignoredExtensions.some(ext => document.fileName.endsWith(ext))) {
+        return;
+    }
+    if (document.fileName.endsWith(".gitignore")) {
+        const hasEnv = document.getText().includes(".env");
+        if (!hasEnv) {
+            const range = new vscode.Range(
+                new vscode.Position(0, 0),
+                new vscode.Position(0, 0)
+            );
+            const diagnostic = new vscode.Diagnostic(range, `Best practice: .env file should be added to .gitignore to avoid accidentally committing secrets.`, vscode.DiagnosticSeverity.Warning);
+            diagnosticCollection.set(document.uri, [diagnostic]);
+        }
         return;
     }
     const documentText = document.getText()

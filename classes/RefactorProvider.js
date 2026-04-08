@@ -12,6 +12,14 @@ class CodeActionProvider {
   provideCodeActions(document, range) {
     const actions = [];
 
+    if (document.fileName.endsWith(".gitignore")) {
+      const addToGitIgnore = new vscode.CodeAction("Add .env to .gitignore", vscode.CodeActionKind.QuickFix);
+      addToGitIgnore.edit = new vscode.WorkspaceEdit();
+      addToGitIgnore.edit.insert(document.uri, new vscode.Position(0, 0), ".env\n");
+      actions.push(addToGitIgnore);
+      return actions;
+    }
+
     // Add quickfix action for moving the credential to .env file in cwd
     const moveToEnv = createMoveToEnvAction(document, range);
     if (moveToEnv) {
