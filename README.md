@@ -18,7 +18,7 @@ Code-Scrubber is a *VSCode* and *VSCodium* extension that *locally* scans your w
 ### Planned features:
 
   - Refining key search algorithm by taking advantage of suspicious patterns via regex.
-  - AWS Integration.
+  - AWS (Amazon WEb Services) Integration.
 
 **Note that new features may be decided. Expect some issues, this project is very early in development!**
 
