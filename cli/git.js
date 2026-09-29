@@ -120,12 +120,14 @@ function stagedAddedLines(root) {
  * @param {string} root
  * @param {string|null} range  e.g. "origin/main..HEAD"
  * @param {(entry) => void} onFile
+ * @param {AbortSignal} [signal]  Stops git and resolves early when aborted
  */
-function historyAddedLines(root, range, onFile) {
+function historyAddedLines(root, range, onFile, signal) {
   const args = ['log', '-p', ...DIFF_FLAGS, '--format=%x00COMMIT %H %aI %an']
   args.push(...(range ? [range] : ['--all']))
   return new Promise((resolve, reject) => {
     const child = spawn('git', args, { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] })
+    if (signal) signal.addEventListener('abort', () => child.kill(), { once: true })
     const parser = new AddedLinesParser(onFile)
     let stderr = ''
     // Settle only once both all output is parsed and git has exited
@@ -133,7 +135,7 @@ function historyAddedLines(root, range, onFile) {
     let exitCode = 0
     const done = () => {
       if (--pending > 0) return
-      if (exitCode === 0) resolve()
+      if (exitCode === 0 || (signal && signal.aborted)) resolve()
       else reject(new Error(`git log failed: ${stderr.trim()}`))
     }
     child.stderr.on('data', chunk => { stderr += chunk })

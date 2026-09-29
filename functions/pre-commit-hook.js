@@ -2,6 +2,7 @@ const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
 const hook = require('../cli/hook');
+const repoScan = require('./repo-scan');
 
 const SETTING = 'twilight0963.codescrubber.preCommitHook';
 const CHOICES_KEY = 'preCommitHookChoices';
@@ -101,7 +102,7 @@ async function showManualInstructions(context, repoRoot, reason) {
  * @param {string} repoRoot
  */
 async function offerHook(context, repoRoot) {
-    const mode = vscode.workspace.getConfiguration().get(SETTING, 'prompt');
+    const mode = vscode.workspace.getConfiguration().get(SETTING, 'always');
     let status;
     try {
         status = hook.hookStatus(repoRoot);
@@ -129,10 +130,23 @@ async function offerHook(context, repoRoot) {
         const { result } = install(context, repoRoot);
         if (result === 'custom-hooks-path') {
             await showManualInstructions(context, repoRoot, 'uses a hook manager (core.hooksPath)');
-        } else {
-            vscode.window.showInformationMessage(`Code-Scrubber pre-commit hook installed in "${path.basename(repoRoot)}".`);
+            return;
         }
+        await rememberChoice(context, repoRoot, 'installed');
         updateStatusBar();
+        // Not awaited: the notice may never be clicked
+        vscode.window.showInformationMessage(
+            `Code-Scrubber is now protecting "${path.basename(repoRoot)}" from commits that contain secrets.`,
+            'Remove Hook',
+            'Settings'
+        ).then(pick => {
+            if (pick === 'Remove Hook') {
+                removeCommand(context, repoRoot);
+            } else if (pick === 'Settings') {
+                vscode.commands.executeCommand('workbench.action.openSettings', SETTING);
+            }
+        });
+        await repoScan.scan(repoRoot, { automatic: true });
         return;
     }
 
@@ -153,6 +167,8 @@ async function offerHook(context, repoRoot) {
 
 async function pickRepo(repoRoot) {
     if (typeof repoRoot === 'string') return repoRoot;
+    // Source Control title buttons pass the SourceControl
+    if (repoRoot && repoRoot.rootUri) return repoRoot.rootUri.fsPath;
     if (!gitApi || gitApi.repositories.length === 0) {
         vscode.window.showWarningMessage('No git repository is open.');
         return null;
@@ -194,6 +210,7 @@ async function installCommand(context, repoRoot) {
     await rememberChoice(context, repoRoot, 'installed');
     vscode.window.showInformationMessage(`Code-Scrubber will now block commits that add secrets in "${path.basename(repoRoot)}".`);
     updateStatusBar();
+    await repoScan.scan(repoRoot, { automatic: true });
 }
 
 async function removeCommand(context, repoRoot) {
@@ -248,7 +265,11 @@ function updateStatusBar() {
 async function activateHooks(context) {
     context.subscriptions.push(
         vscode.commands.registerCommand('twilight0963.codescrubber.installHook', repoRoot => installCommand(context, repoRoot)),
-        vscode.commands.registerCommand('twilight0963.codescrubber.removeHook', repoRoot => removeCommand(context, repoRoot))
+        vscode.commands.registerCommand('twilight0963.codescrubber.removeHook', repoRoot => removeCommand(context, repoRoot)),
+        vscode.commands.registerCommand('twilight0963.codescrubber.scanRepository', async repoRoot => {
+            repoRoot = await pickRepo(repoRoot);
+            return repoRoot ? repoScan.scan(repoRoot) : null;
+        })
     );
 
     statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);

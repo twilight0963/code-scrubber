@@ -130,6 +130,34 @@ suite('Code-Scrubber', () => {
 			assert.ok(!fs.existsSync(hookFile(repo)));
 		});
 
+		test('scan command reports unopened files in Problems and history-only secrets', async () => {
+			const repo = makeRepo();
+			const git = args => execFileSync('git', args, { cwd: repo, stdio: 'pipe', env: { ...process.env, CODE_SCRUBBER_NONINTERACTIVE: '1' } });
+			// A secret committed and then deleted (history only)...
+			fs.writeFileSync(path.join(repo, 'old.js'), `k = "${FAKE_AWS_KEY}"\n`);
+			git(['add', '-A']);
+			git(['commit', '-q', '--no-verify', '-m', 'leak']);
+			fs.writeFileSync(path.join(repo, 'old.js'), 'k = process.env.KEY\n');
+			git(['commit', '-q', '-am', 'remove']);
+			// ...and one in a file that is never opened in the editor
+			const token = ['ghp_', '16C7e42F292c6912E7710c838347Ae178B4a'].join('');
+			fs.writeFileSync(path.join(repo, 'unopened.js'), `t = "${token}"\n`);
+
+			const summary = await vscode.commands.executeCommand('twilight0963.codescrubber.scanRepository', repo);
+			assert.deepStrictEqual(summary, { files: 1, filesWithSecrets: 1, historyOnly: 1, cancelled: false });
+
+			const diagnostics = vscode.languages.getDiagnostics(vscode.Uri.file(path.join(repo, 'unopened.js')));
+			assert.strictEqual(diagnostics.length, 1);
+			assert.strictEqual(diagnostics[0].code, 'github-token');
+			assert.ok(!diagnostics[0].message.includes(token));
+		});
+
+		test('scan command accepts the SourceControl object from the Source Control title button', async () => {
+			const repo = makeRepo();
+			const summary = await vscode.commands.executeCommand('twilight0963.codescrubber.scanRepository', { rootUri: vscode.Uri.file(repo) });
+			assert.deepStrictEqual(summary, { files: 0, filesWithSecrets: 0, historyOnly: 0, cancelled: false });
+		});
+
 		test('installs automatically when a repository opens and the setting is "always"', async () => {
 			await vscode.workspace.getConfiguration().update('twilight0963.codescrubber.preCommitHook', 'always', vscode.ConfigurationTarget.Global);
 			const repo = makeRepo();

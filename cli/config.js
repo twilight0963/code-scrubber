@@ -84,10 +84,12 @@ function loadConfig(root, explicitPath) {
   const excludes = config.exclude.map(globToRegExp)
   const allowPaths = config.allowlist.paths.map(globToRegExp)
   const allowValues = config.allowlist.values.map(v => new RegExp(v))
+  // Code-Scrubber's own files: the baseline is full of fingerprint hashes
+  const ownFiles = new Set([CONFIG_FILE, toPosix(path.normalize(config.baseline))])
 
   return {
     ...config,
-    isExcluded: file => excludes.some(re => re.test(toPosix(file))),
+    isExcluded: file => ownFiles.has(toPosix(file)) || excludes.some(re => re.test(toPosix(file))),
     isAllowed: (finding, file) =>
       config.allowlist.rules.includes(finding.ruleId) ||
       allowPaths.some(re => re.test(toPosix(file))) ||

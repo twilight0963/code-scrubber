@@ -9,6 +9,9 @@ const path = require('path')
 const { execFileSync } = require('child_process')
 const { main } = require('..')
 
+// Never open real "Commit Anyway" dialogs while testing
+process.env.CODE_SCRUBBER_NONINTERACTIVE = '1'
+
 // Split so this file never contains a realistic-looking key
 const AWS_KEY = ['AKIA', 'Q3EGRIUVT6K2XBZP'].join('')
 const GH_TOKEN = ['ghp_', '16C7e42F292c6912E7710c838347Ae178B4a'].join('')
@@ -294,5 +297,128 @@ describe('install-hook', () => {
     assert.equal(code, 2)
     assert.match(err, /already exists/)
     assert.equal((await run('install-hook', '--force')).code, 0)
+  })
+})
+
+describe('commit anyway (GUI override)', () => {
+  const { scanRepository } = require('..')
+  const { overrideMessage } = require('../override')
+
+  async function staged(io) {
+    const saved = process.env.CODE_SCRUBBER_NONINTERACTIVE
+    delete process.env.CODE_SCRUBBER_NONINTERACTIVE
+    try {
+      let out = ''
+      const code = await main(['staged', '--gui-override'], {
+        cwd: repo,
+        stdout: { write: s => { out += s }, isTTY: false },
+        stderr: { write: () => {} },
+        ...io
+      })
+      return { code, out }
+    } finally {
+      process.env.CODE_SCRUBBER_NONINTERACTIVE = saved
+    }
+  }
+
+  const logFile = () => path.join(repo, '.git', 'code-scrubber-overrides.log')
+
+  test('accepting the dialog allows the commit and logs it, masked', async () => {
+    write('a.js', `k = "${AWS_KEY}"\n`)
+    sh('add', '-A')
+    let shown = null
+    const { code, out } = await staged({ isGuiCommit: () => true, confirmOverride: async f => { shown = f; return true } })
+    assert.equal(code, 0)
+    assert.equal(shown.length, 1)
+    assert.match(out, /Commit allowed by user override/)
+    const log = fs.readFileSync(logFile(), 'utf8')
+    assert.match(log, /commit allowed\taws-access-key-id\ta\.js:1\tAKIA…BZP/)
+    assert.ok(!log.includes(AWS_KEY))
+  })
+
+  test('cancelling keeps the commit blocked and logs nothing', async () => {
+    write('a.js', `k = "${AWS_KEY}"\n`)
+    sh('add', '-A')
+    const { code } = await staged({ isGuiCommit: () => true, confirmOverride: async () => false })
+    assert.equal(code, 1)
+    assert.ok(!fs.existsSync(logFile()))
+  })
+
+  test('terminal commits never get the dialog', async () => {
+    write('a.js', `k = "${AWS_KEY}"\n`)
+    sh('add', '-A')
+    let asked = false
+    const { code } = await staged({ isGuiCommit: () => false, confirmOverride: async () => { asked = true; return true } })
+    assert.equal(code, 1)
+    assert.equal(asked, false)
+  })
+
+  test('without --gui-override there is no dialog', async () => {
+    write('a.js', `k = "${AWS_KEY}"\n`)
+    sh('add', '-A')
+    let asked = false
+    const code = await main(['staged'], {
+      cwd: repo, stdout: { write: () => {} }, stderr: { write: () => {} },
+      isGuiCommit: () => true, confirmOverride: async () => { asked = true; return true }
+    })
+    assert.equal(code, 1)
+    assert.equal(asked, false)
+  })
+
+  test('dialog text lists masked findings and caps the list', () => {
+    const f = i => ({ ruleName: 'AWS Access Key ID', file: `f${i}.js`, line: 0, masked: 'AKIA…BZP' })
+    const msg = overrideMessage([0, 1, 2, 3, 4, 5, 6].map(f))
+    assert.match(msg, /This commit adds 7 potential secrets/)
+    assert.match(msg, /• AWS Access Key ID in f0\.js \(line 1\): AKIA…BZP/)
+    assert.match(msg, /…and 2 more/)
+    assert.ok(!msg.includes('f5.js'))
+  })
+
+  test('the terminal message mentions --no-verify', async () => {
+    write('a.js', `k = "${AWS_KEY}"\n`)
+    sh('add', '-A')
+    const { out } = await run('staged')
+    assert.match(out, /git commit --no-verify/)
+  })
+
+  describe('scanRepository', () => {
+    test('finds secrets in files and in history, with status', async () => {
+      write('a.js', `k = "${AWS_KEY}"\n`)
+      commit('leak')
+      write('a.js', 'k = process.env.KEY\n')
+      write('b.js', `t = "${GH_TOKEN}"\n`)
+      commit('move')
+      const res = await scanRepository(repo)
+      assert.deepEqual(res.files.map(f => [f.file, f.ruleId]), [['b.js', 'github-token']])
+      const byRule = Object.fromEntries(res.history.map(h => [h.ruleId, h.status]))
+      assert.deepEqual(byRule, { 'aws-access-key-id': 'history-only', 'github-token': 'present' })
+      assert.equal(res.cancelled, false)
+    })
+
+    test('works in a brand-new repository with no commits', async () => {
+      write('a.js', `k = "${AWS_KEY}"\n`)
+      const res = await scanRepository(repo)
+      assert.equal(res.files.length, 1)
+      assert.deepEqual(res.history, [])
+    })
+
+    test('respects the allowlist and baseline', async () => {
+      write('a.js', `k = "${AWS_KEY}"\n`)
+      write('b.js', `t = "${GH_TOKEN}"\n`)
+      write('.code-scrubber.json', JSON.stringify({ allowlist: { paths: ['a.js'] } }))
+      await run('scan', '--update-baseline')
+      const res = await scanRepository(repo, { history: false })
+      assert.deepEqual(res.files, [])
+    })
+
+    test('can be cancelled', async () => {
+      write('a.js', `k = "${AWS_KEY}"\n`)
+      commit()
+      const controller = new AbortController()
+      controller.abort()
+      const res = await scanRepository(repo, { signal: controller.signal })
+      assert.equal(res.cancelled, true)
+      assert.deepEqual(res.history, [])
+    })
   })
 })

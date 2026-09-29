@@ -10,6 +10,19 @@ const SEVERITY = {
     low: vscode.DiagnosticSeverity.Warning
 }
 
+// Turn a core finding into a Problems-panel entry
+function toDiagnostic(finding) {
+    const range = new vscode.Range(
+        new vscode.Position(finding.line, finding.column),
+        new vscode.Position(finding.endLine, finding.endColumn)
+    );
+    // Mask the secret so it doesn't end up in the Problems panel or logs
+    const diagnostic = new vscode.Diagnostic(range, `${finding.ruleName} detected: ${finding.masked}`, SEVERITY[finding.confidence]);
+    diagnostic.source = DIAGNOSTIC_SOURCE;
+    diagnostic.code = finding.ruleId;
+    return diagnostic;
+}
+
 // The actual detection system
 function detectCredentials(document, diagnosticCollection) {
     // Assume no problems until found
@@ -40,17 +53,7 @@ function detectCredentials(document, diagnosticCollection) {
     const findings = core.scanText(document.getText(), { filePath: document.fileName })
 
     // List of found problems
-    const diagnostics = findings.map(finding => {
-        const range = new vscode.Range(
-            new vscode.Position(finding.line, finding.column),
-            new vscode.Position(finding.endLine, finding.endColumn)
-        );
-        // Mask the secret so it doesn't end up in the Problems panel or logs
-        const diagnostic = new vscode.Diagnostic(range, `${finding.ruleName} detected: ${finding.masked}`, SEVERITY[finding.confidence]);
-        diagnostic.source = DIAGNOSTIC_SOURCE;
-        diagnostic.code = finding.ruleId;
-        return diagnostic;
-    });
+    const diagnostics = findings.map(toDiagnostic);
 
     // Update the problems tab
     if (diagnostics.length > 0) {
@@ -60,5 +63,6 @@ function detectCredentials(document, diagnosticCollection) {
 
 module.exports = {
     detectCredentials,
+    toDiagnostic,
     DIAGNOSTIC_SOURCE
 }

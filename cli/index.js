@@ -9,6 +9,7 @@ const { loadConfig, LEVELS, toPosix } = require('./config')
 const { fingerprint, loadBaseline, writeBaseline } = require('./baseline')
 const report = require('./report')
 const hook = require('./hook')
+const override = require('./override')
 
 const HELP = `Usage: code-scrubber <command> [options]
 
@@ -30,6 +31,8 @@ Options:
   --range <a..b>      history: commit range to scan (default: all branches and tags)
   --no-color          Disable coloured output
   --force             install-hook: replace an existing pre-commit hook
+  --gui-override      staged: when a commit made from an app (not a terminal) is
+                      blocked, offer "Commit Anyway" in a dialog; overrides are logged
   -h, --help          Show this help
 
 Exit codes: 0 = no blocking findings, 1 = blocking findings, 2 = error
@@ -108,7 +111,7 @@ function scanStaged(root, config) {
   return results
 }
 
-async function scanHistory(root, config, range) {
+async function scanHistory(root, config, range, signal) {
   // git log lists newest first, so the last hit for a fingerprint is the
   // commit that introduced the secret.
   const byFingerprint = new Map()
@@ -149,7 +152,7 @@ async function scanHistory(root, config, range) {
       result.fingerprint = fingerprint(result, result.file)
       byFingerprint.set(result.fingerprint, result)
     }
-  })
+  }, signal)
   return [...byFingerprint.values()]
 }
 
@@ -189,6 +192,7 @@ async function main(argv, io = {}) {
         range: { type: 'string' },
         'no-color': { type: 'boolean', default: false },
         force: { type: 'boolean', default: false },
+        'gui-override': { type: 'boolean', default: false },
         help: { type: 'boolean', short: 'h', default: false }
       }
     })
@@ -266,14 +270,60 @@ async function main(argv, io = {}) {
     } else {
       stdout.write(formatted)
     }
-    return results.some(r => r.blocking) ? 1 : 0
+
+    const blocking = results.filter(r => r.blocking)
+    if (blocking.length && command === 'staged' && opts['gui-override'] && !process.env.CODE_SCRUBBER_NONINTERACTIVE) {
+      const isGui = io.isGuiCommit || override.isGuiCommit
+      const confirm = io.confirmOverride || override.confirmOverride
+      if (isGui() && await confirm(blocking)) {
+        const log = override.logOverride(root, blocking)
+        stdout.write(`\nCommit allowed by user override. This was logged to ${log}\n`)
+        return 0
+      }
+    }
+    return blocking.length ? 1 : 0
   } catch (err) {
     stderr.write(`code-scrubber: ${err.message}\n`)
     return 2
   }
 }
 
+/**
+ * Scan a repository's working tree and (optionally) its git history, applying
+ * the repo's config and baseline. Used by the VS Code extension.
+ * @param {string} root
+ * @param {{ history?: boolean, signal?: AbortSignal }} [options]
+ */
+async function scanRepository(root, { history = true, signal } = {}) {
+  const config = loadConfig(root)
+  const inGit = Boolean(git.gitRoot(root))
+  const files = collectFiles(root, root, ['.'], inGit)
+  const fileResults = []
+  for (let i = 0; i < files.length && !(signal && signal.aborted); i++) {
+    fileResults.push(...scanFiles(root, [files[i]], config))
+    // Yield now and then so the editor stays responsive
+    if (i % 25 === 24) await new Promise(resolve => setImmediate(resolve))
+  }
+
+  let historyResults = []
+  if (history && inGit && !(signal && signal.aborted)) {
+    historyResults = await scanHistory(root, config, null, signal)
+  }
+
+  const accepted = loadBaseline(path.resolve(root, config.baseline))
+  const keep = r => {
+    r.fingerprint = r.fingerprint || fingerprint(r, r.file)
+    return !config.isAllowed(r, r.file) && !accepted.has(r.fingerprint)
+  }
+  return {
+    files: fileResults.filter(keep),
+    history: historyResults.filter(keep),
+    cancelled: Boolean(signal && signal.aborted)
+  }
+}
+
 module.exports = {
   main,
+  scanRepository,
   HELP
 }

@@ -48,10 +48,21 @@
         "command": "twilight0963.codescrubber.removeHook",
         "title": "Remove pre-commit hook",
         "category": "Code Scrubber"
+      },
+      {
+        "command": "twilight0963.codescrubber.scanRepository",
+        "title": "Scan repository for secrets",
+        "category": "Code Scrubber",
+        "icon": "$(search)"
       }
     ],
     "menus": {
       "scm/title": [
+        {
+          "command": "twilight0963.codescrubber.scanRepository",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        },
         {
           "command": "twilight0963.codescrubber.encryptDotenv",
           "group": "navigation",
@@ -75,16 +86,16 @@
         "twilight0963.codescrubber.preCommitHook": {
           "type": "string",
           "enum": [
-            "prompt",
             "always",
+            "prompt",
             "never"
           ],
           "enumDescriptions": [
+            "Install the hook automatically in every repository that doesn't have one, then scan the repository.",
             "Ask once per repository when it is opened or initialized.",
-            "Install the hook automatically in every repository that doesn't have one.",
             "Never install or offer the hook automatically (the commands still work)."
           ],
-          "default": "prompt",
+          "default": "always",
           "description": "Install a pre-commit hook that blocks commits adding hardcoded secrets."
         }
       }

@@ -76,6 +76,7 @@ function formatText(results, { color = false, mode = 'scan', failOn, baselined =
     if (mode === 'staged') {
       lines.push('')
       lines.push(c.red('Commit blocked by Code-Scrubber.'))
+      lines.push(c.dim('To commit anyway (not recommended): git commit --no-verify'))
     }
   }
   return lines.join('\n') + '\n'

@@ -7,6 +7,9 @@ const path = require('path')
 const { execFileSync } = require('child_process')
 const hook = require('../hook')
 
+// Never open real "Commit Anyway" dialogs while testing
+process.env.CODE_SCRUBBER_NONINTERACTIVE = '1'
+
 const AWS_KEY = ['AKIA', 'Q3EGRIUVT6K2XBZP'].join('')
 const CLI = path.resolve(__dirname, '..', '..', 'bin', 'code-scrubber.js')
 // A PATH with git but without Homebrew/nvm Node

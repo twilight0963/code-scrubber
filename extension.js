@@ -5,6 +5,7 @@ const refactorProvider = require("./classes/RefactorProvider");
 const debugInfoCommand = require("./functions/debug-info-command");
 const encryptDotenv = require("./functions/encrypt-dotenv");
 const preCommitHook = require("./functions/pre-commit-hook");
+const repoScan = require("./functions/repo-scan");
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -18,6 +19,7 @@ function activate(context) {
     vscode.languages.createDiagnosticCollection("credentials");
     // Disposed (and its problems cleared) automatically on deactivate
     context.subscriptions.push(diagnosticCollection);
+    repoScan.init(context, diagnosticCollection);
     const refactorDiagnostic = new refactorProvider.CodeActionProvider();
 
     // Subscribe the refactor to menu

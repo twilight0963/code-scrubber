@@ -33,10 +33,10 @@ FALLBACK_NODE=${shellQuote(fallbackNode || '')}
 
 if [ -f "$CLI" ]; then
   if command -v node >/dev/null 2>&1; then
-    exec node "$CLI" staged
+    exec node "$CLI" staged --gui-override
   fi
   if [ -n "$FALLBACK_NODE" ] && [ -x "$FALLBACK_NODE" ]; then
-    ELECTRON_RUN_AS_NODE=1 exec "$FALLBACK_NODE" "$CLI" staged
+    ELECTRON_RUN_AS_NODE=1 exec "$FALLBACK_NODE" "$CLI" staged --gui-override
   fi
 fi
 
