@@ -16,6 +16,9 @@
     "onStartupFinished"
   ],
   "main": "./extension.js",
+  "bin": {
+    "code-scrubber": "./bin/code-scrubber.js"
+  },
   "contributes": {
     "commands": [
       {
@@ -34,6 +37,17 @@
         "title": "Decrypt .env.enc file",
         "category": "Code Scrubber",
         "icon": "$(key)"
+      },
+      {
+        "command": "twilight0963.codescrubber.installHook",
+        "title": "Install pre-commit hook",
+        "category": "Code Scrubber",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "twilight0963.codescrubber.removeHook",
+        "title": "Remove pre-commit hook",
+        "category": "Code Scrubber"
       }
     ],
     "menus": {
@@ -57,22 +71,40 @@
           "type": "boolean",
           "default": true,
           "description": "Enable the 'Encrypt .env file' button in the Source Control menu."
+        },
+        "twilight0963.codescrubber.preCommitHook": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "always",
+            "never"
+          ],
+          "enumDescriptions": [
+            "Ask once per repository when it is opened or initialized.",
+            "Install the hook automatically in every repository that doesn't have one.",
+            "Never install or offer the hook automatically (the commands still work)."
+          ],
+          "default": "prompt",
+          "description": "Install a pre-commit hook that blocks commits adding hardcoded secrets."
         }
       }
     }
   },
   "scripts": {
     "lint": "eslint .",
-    "pretest": "npm run lint",
-    "test": "vscode-test"
+    "test:unit": "node --test \"core/test/**/*.test.js\" \"cli/test/**/*.test.js\"",
+    "pretest": "npm run lint && npm run test:unit",
+    "test": "vscode-test",
+    "scan": "node bin/code-scrubber.js scan"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "25.3.0",
     "@types/vscode": "^1.109.0",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2",
-    "eslint": "^10.0.0"
+    "@vscode/test-electron": "^3.1.0",
+    "eslint": "^10.0.0",
+    "globals": "^17.12.0"
   },
   "dependencies": {
     "is-gibberish": "^0.1.0"

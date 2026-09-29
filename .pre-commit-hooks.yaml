@@ -1,0 +1,15 @@
+# Lets other repos use Code-Scrubber with the pre-commit framework
+# (https://pre-commit.com). In their .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/twilight0963/code-scrubber
+#       rev: <tag or commit>
+#       hooks:
+#         - id: code-scrubber
+- id: code-scrubber
+  name: Code-Scrubber (hardcoded secrets)
+  description: Blocks commits that add hardcoded credentials.
+  entry: code-scrubber staged
+  language: node
+  pass_filenames: false
+  always_run: true

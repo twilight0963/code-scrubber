@@ -1,6 +1,9 @@
 import globals from "globals";
 
 export default [{
+    // Downloaded VS Code test builds ship their own (unresolvable) eslint configs
+    ignores: [".vscode-test/**", "release/**"],
+}, {
     files: ["**/*.js"],
     languageOptions: {
         globals: {

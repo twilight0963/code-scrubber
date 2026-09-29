@@ -4,6 +4,7 @@ const scanner = require("./functions/credential-scanner");
 const refactorProvider = require("./classes/RefactorProvider");
 const debugInfoCommand = require("./functions/debug-info-command");
 const encryptDotenv = require("./functions/encrypt-dotenv");
+const preCommitHook = require("./functions/pre-commit-hook");
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -15,6 +16,8 @@ function activate(context) {
     // Problems collection
     const diagnosticCollection =
     vscode.languages.createDiagnosticCollection("credentials");
+    // Disposed (and its problems cleared) automatically on deactivate
+    context.subscriptions.push(diagnosticCollection);
     const refactorDiagnostic = new refactorProvider.CodeActionProvider();
 
     // Subscribe the refactor to menu
@@ -34,8 +37,18 @@ function activate(context) {
         scanner.detectCredentials(document, diagnosticCollection)
     );
 
-    // Save the listener
-    context.subscriptions.push(saveListener);
+    // Read files as they are opened
+    let openListener = vscode.workspace.onDidOpenTextDocument((document) =>
+        scanner.detectCredentials(document, diagnosticCollection)
+    );
+
+    // Clear problems for files that are closed
+    let closeListener = vscode.workspace.onDidCloseTextDocument((document) =>
+        diagnosticCollection.delete(document.uri)
+    );
+
+    // Save the listeners
+    context.subscriptions.push(saveListener, openListener, closeListener);
 
     // Command used for demos: shows the credential warning prompt.
     const showPromptCommand = vscode.commands.registerCommand(
@@ -68,28 +81,31 @@ function activate(context) {
     encryptDotenv.checkAndPromptDecryption();
 
     // Integrated Git Pull detection
-    const gitExtension = vscode.extensions.getExtension("vscode.git");
-    if (gitExtension) {
-        const activateGit = async () => {
-            const gitApi = gitExtension.exports.getAPI(1);
-            if (gitApi && gitApi.repositories.length > 0) {
-                gitApi.repositories.forEach((repo) => {
-                    repo.state.onDidChange(() => {
-                        encryptDotenv.checkAndPromptDecryption();
-                    });
-                });
-            }
+    const activateGit = async () => {
+        const gitApi = await preCommitHook.getGitApi();
+        if (!gitApi) {
+            return;
+        }
+        const watchRepo = (repo) => {
+            context.subscriptions.push(repo.state.onDidChange(() => {
+                encryptDotenv.checkAndPromptDecryption();
+            }));
         };
-        activateGit();
-    }
+        gitApi.repositories.forEach(watchRepo);
+        context.subscriptions.push(gitApi.onDidOpenRepository(watchRepo));
+    };
+    activateGit().catch((err) => console.error("Code-Scrubber: git integration failed", err));
+
+    // Offer the pre-commit hook when a repository is opened or initialized
+    preCommitHook.activateHooks(context).catch((err) =>
+        console.error("Code-Scrubber: pre-commit hook setup failed", err)
+    );
 }
 
 // This method is called when your extension is deactivated
 function deactivate() {
-    // Remove all reported problems
-    vscode.workspace.textDocuments.forEach((document) =>
-        diagnosticCollection.delete(document.uri),
-    );
+    // The diagnostic collection is in context.subscriptions, so VS Code
+    // disposes it (clearing all reported problems) for us.
 }
 
 module.exports = {

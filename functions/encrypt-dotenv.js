@@ -1,7 +1,8 @@
 const vscode = require('vscode');
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
+
+const { encryptText, decryptText } = require('../core/dotenv-crypto');
 
 async function encryptDotenv() {
     const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -28,15 +29,7 @@ async function encryptDotenv() {
 
     try {
         const content = fs.readFileSync(dotenvPath, 'utf8');
-        const algorithm = 'aes-256-cbc';
-        const key = crypto.scryptSync(password, 'salt', 32);
-        const iv = crypto.randomBytes(16);
-
-        const cipher = crypto.createCipheriv(algorithm, key, iv);
-        let encrypted = cipher.update(content, 'utf8', 'hex');
-        encrypted += cipher.final('hex');
-
-        const result = iv.toString('hex') + ':' + encrypted;
+        const result = encryptText(content, password);
         const encryptedPath = dotenvPath + '.enc';
         
         fs.writeFileSync(encryptedPath, result);
@@ -76,20 +69,11 @@ async function decryptDotenv() {
 
     try {
         const fileContent = fs.readFileSync(encryptedPath, 'utf8');
-        const parts = fileContent.split(':');
-        if (parts.length !== 2) throw new Error('Invalid encrypted file format.');
-
-        const iv = Buffer.from(parts[0], 'hex');
-        const encryptedText = parts[1];
-        const algorithm = 'aes-256-cbc';
-        const key = crypto.scryptSync(password, 'salt', 32);
-
-        const decipher = crypto.createDecipheriv(algorithm, key, iv);
-        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
+        const decrypted = decryptText(fileContent, password);
 
         const dotenvPath = path.join(workspaceFolders[0].uri.fsPath, '.env');
-        fs.writeFileSync(dotenvPath, decrypted);
+        // Owner read/write only
+        fs.writeFileSync(dotenvPath, decrypted, { mode: 0o600 });
         vscode.window.showInformationMessage('Successfully decrypted .env file.');
 
         const deleteEncrypted = await vscode.window.showInformationMessage(
@@ -103,10 +87,11 @@ async function decryptDotenv() {
             vscode.window.showInformationMessage('.env.enc file deleted.');
         }
     } catch (err) {
-        if (err.message.includes('BAD_DECRYPT')) {
-            vscode.window.showErrorMessage('Incorrect password entered. Decryption failed.');
+        if (err.message.includes('unable to authenticate')) {
+            vscode.window.showErrorMessage('Incorrect password, or the .env.enc file has been modified. Decryption failed.');
+        } else {
+            vscode.window.showErrorMessage('Decryption failed: ' + err.message);
         }
-        vscode.window.showErrorMessage('Decryption failed: ' + err.message);
     }
 }
 

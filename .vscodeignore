@@ -8,3 +8,6 @@ vsc-extension-quickstart.md
 **/*.map
 **/eslint.config.mjs
 **/.vscode-test.*
+core/test/**
+cli/test/**
+.pre-commit-hooks.yaml
