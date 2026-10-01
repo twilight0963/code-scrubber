@@ -29,6 +29,15 @@ function listFiles(root) {
     .filter(Boolean)
 }
 
+// .env files (.env, .env.local, config/.env, ...), including gitignored ones,
+// since that is usually where a secret moved out of the code ends up.
+function listEnvFiles(root) {
+  return git(['ls-files', '-z', '--cached', '--others', '--', ':(glob)**/.env', ':(glob)**/.env.*'], root)
+    .toString()
+    .split('\0')
+    .filter(Boolean)
+}
+
 // Contents of a file at a revision; rev '' means the staged (index) version.
 function showBlob(root, rev, file) {
   try {
@@ -151,6 +160,7 @@ module.exports = {
   git,
   gitRoot,
   listFiles,
+  listEnvFiles,
   showBlob,
   stagedAddedLines,
   historyAddedLines,

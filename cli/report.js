@@ -19,7 +19,7 @@ const ROTATE_ADVICE = [
 
 function colors(enabled) {
   const wrap = code => s => enabled ? `\x1b[${code}m${s}\x1b[0m` : s
-  return { red: wrap(31), yellow: wrap(33), dim: wrap(2), bold: wrap(1), cyan: wrap(36) }
+  return { red: wrap(31), green: wrap(32), yellow: wrap(33), dim: wrap(2), bold: wrap(1), cyan: wrap(36) }
 }
 
 // Only what's safe to print or store
@@ -44,9 +44,15 @@ function publicFields(r) {
   return out
 }
 
-function formatText(results, { color = false, mode = 'scan', failOn, baselined = 0 } = {}) {
+function formatText(results, { color = false, mode = 'scan', failOn, baselined = 0, rotated = [] } = {}) {
   const c = colors(color)
   const lines = []
+
+  for (const r of rotated) {
+    lines.push(c.green(`Key ${r.masked} was successfully rotated!`) +
+      c.dim(` (${r.ruleName} in ${toPosix(r.file)}, leaked in ${r.commit.sha.slice(0, 10)})`))
+  }
+  if (rotated.length && results.length) lines.push('')
   const paint = r => r.blocking ? (r.confidence === 'low' ? c.yellow : c.red) : c.dim
 
   for (const r of results) {
@@ -82,12 +88,13 @@ function formatText(results, { color = false, mode = 'scan', failOn, baselined =
   return lines.join('\n') + '\n'
 }
 
-function formatJson(results, meta = {}) {
+function formatJson(results, meta = {}, rotated = []) {
   return JSON.stringify({
     tool: 'code-scrubber',
     version: pkg.version,
     ...meta,
-    findings: results.map(publicFields)
+    findings: results.map(publicFields),
+    ...(rotated.length ? { rotated: rotated.map(publicFields) } : {})
   }, null, 2) + '\n'
 }
 

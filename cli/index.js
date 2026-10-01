@@ -111,23 +111,52 @@ function scanStaged(root, config) {
   return results
 }
 
+// An encrypted .env can't be searched, so there is no way to tell whether a
+// leaked key is still in use. History scans refuse to run until it's decrypted.
+const ENCRYPTED_ENV_MESSAGE = 'Encrypted .env was detected, please decrypt it before starting the scan'
+
+class EncryptedEnvError extends Error {
+  constructor(file) {
+    super(`${ENCRYPTED_ENV_MESSAGE} (${toPosix(file)})`)
+    this.code = 'ENCRYPTED_ENV'
+    this.file = file
+  }
+}
+
+function checkEncryptedEnv(root) {
+  const file = git.listEnvFiles(root).find(f => f.endsWith('.enc'))
+  if (file) throw new EncryptedEnvError(file)
+}
+
 async function scanHistory(root, config, range, signal) {
+  checkEncryptedEnv(root)
   // git log lists newest first, so the last hit for a fingerprint is the
   // commit that introduced the secret.
   const byFingerprint = new Map()
-  const currentText = new Map()
 
-  const stillPresent = (file, secret) => {
-    if (!currentText.has(file)) {
-      let text = ''
+  // Current contents of the working tree and .env files, read on the first hit
+  let current = null
+  const loadCurrent = () => {
+    const read = file => {
       try {
-        text = fs.readFileSync(path.join(root, file), 'utf8')
+        return decode(fs.readFileSync(path.join(root, file))) || ''
       } catch {
-        // File no longer exists
+        return '' // deleted but still tracked, broken symlink, etc.
       }
-      currentText.set(file, text)
     }
-    return currentText.get(file).includes(secret)
+    return {
+      code: git.listFiles(root).map(read),
+      env: git.listEnvFiles(root).map(read)
+    }
+  }
+
+  // present: still in the code. history-only: gone from the code but still in
+  // a .env file, so still in use. rotated: gone from both.
+  const statusOf = secret => {
+    current = current || loadCurrent()
+    if (current.code.some(text => text.includes(secret))) return 'present'
+    if (current.env.some(text => text.includes(secret))) return 'history-only'
+    return 'rotated'
   }
 
   await git.historyAddedLines(root, range, entry => {
@@ -147,7 +176,7 @@ async function scanHistory(root, config, range, signal) {
         ...finding,
         file: entry.file,
         commit: entry.commit,
-        status: stillPresent(entry.file, finding.secret) ? 'present' : 'history-only'
+        status: statusOf(finding.secret)
       }
       result.fingerprint = fingerprint(result, result.file)
       byFingerprint.set(result.fingerprint, result)
@@ -244,6 +273,9 @@ async function main(argv, io = {}) {
 
     results = results.filter(r => !config.isAllowed(r, r.file))
     for (const r of results) r.fingerprint = r.fingerprint || fingerprint(r, r.file)
+    // Keys that left history and the code and .env are fixed, not findings
+    const rotated = results.filter(r => r.status === 'rotated')
+    results = results.filter(r => r.status !== 'rotated')
 
     const baselinePath = path.resolve(root, opts.baseline || config.baseline)
     if (opts['update-baseline']) {
@@ -259,9 +291,9 @@ async function main(argv, io = {}) {
     results.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)
 
     const color = !opts['no-color'] && !process.env.NO_COLOR && Boolean(stdout.isTTY)
-    const text = report.formatText(results, { color, mode: command, failOn, baselined })
+    const text = report.formatText(results, { color, mode: command, failOn, baselined, rotated })
     const formatted = opts.format === 'json'
-      ? report.formatJson(results, { command, failOn, baselined })
+      ? report.formatJson(results, { command, failOn, baselined }, rotated)
       : opts.format === 'sarif' ? report.formatSarif(results) : text
 
     if (opts.output) {
@@ -293,10 +325,14 @@ async function main(argv, io = {}) {
  * the repo's config and baseline. Used by the VS Code extension.
  * @param {string} root
  * @param {{ history?: boolean, signal?: AbortSignal }} [options]
+ * @throws {EncryptedEnvError} (err.code 'ENCRYPTED_ENV') when scanning history
+ *   and the repo has an encrypted .env file
  */
 async function scanRepository(root, { history = true, signal } = {}) {
   const config = loadConfig(root)
   const inGit = Boolean(git.gitRoot(root))
+  // Check before doing any work, so the whole scan stops
+  if (history && inGit) checkEncryptedEnv(root)
   const files = collectFiles(root, root, ['.'], inGit)
   const fileResults = []
   for (let i = 0; i < files.length && !(signal && signal.aborted); i++) {
@@ -315,9 +351,11 @@ async function scanRepository(root, { history = true, signal } = {}) {
     r.fingerprint = r.fingerprint || fingerprint(r, r.file)
     return !config.isAllowed(r, r.file) && !accepted.has(r.fingerprint)
   }
+  historyResults = historyResults.filter(keep)
   return {
     files: fileResults.filter(keep),
-    history: historyResults.filter(keep),
+    history: historyResults.filter(r => r.status !== 'rotated'),
+    rotated: historyResults.filter(r => r.status === 'rotated'),
     cancelled: Boolean(signal && signal.aborted)
   }
 }
@@ -325,5 +363,6 @@ async function scanRepository(root, { history = true, signal } = {}) {
 module.exports = {
   main,
   scanRepository,
+  ENCRYPTED_ENV_MESSAGE,
   HELP
 }

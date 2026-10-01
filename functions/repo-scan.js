@@ -1,6 +1,6 @@
 const vscode = require('vscode');
 const path = require('path');
-const { scanRepository } = require('../cli');
+const { scanRepository, ENCRYPTED_ENV_MESSAGE } = require('../cli');
 const { toDiagnostic } = require('./credential-scanner');
 
 let diagnosticCollection = null;
@@ -55,14 +55,22 @@ async function scan(repoRoot, { history = true, automatic = false } = {}) {
     const name = path.basename(repoRoot);
     const controller = new AbortController();
 
-    const result = await vscode.window.withProgress({
-        location: vscode.ProgressLocation.Notification,
-        title: `Code-Scrubber: scanning "${name}" for secrets…`,
-        cancellable: true
-    }, (_progress, token) => {
-        token.onCancellationRequested(() => controller.abort());
-        return scanRepository(repoRoot, { history, signal: controller.signal });
-    });
+    let result;
+    try {
+        result = await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: `Code-Scrubber: scanning "${name}" for secrets…`,
+            cancellable: true
+        }, (_progress, token) => {
+            token.onCancellationRequested(() => controller.abort());
+            return scanRepository(repoRoot, { history, signal: controller.signal });
+        });
+    } catch (err) {
+        if (err.code !== 'ENCRYPTED_ENV') throw err;
+        // Can't tell whether leaked keys were rotated without reading the .env
+        vscode.window.showWarningMessage(`${ENCRYPTED_ENV_MESSAGE}.`);
+        return { files: 0, filesWithSecrets: 0, historyOnly: 0, cancelled: true };
+    }
 
     // Show file findings in the Problems panel, including files that aren't open
     const byFile = new Map();
@@ -105,6 +113,13 @@ async function scan(repoRoot, { history = true, automatic = false } = {}) {
         ).then(pick => {
             if (pick === 'View Details') output.show(true);
         });
+    }
+    // Leaked keys that are gone from the code and .env were rotated; not a problem
+    if (result.rotated.length === 1) {
+        vscode.window.showInformationMessage(`Key ${result.rotated[0].masked} was successfully rotated!`);
+    } else if (result.rotated.length > 1) {
+        const keys = result.rotated.map(r => r.masked).join(', ');
+        vscode.window.showInformationMessage(`${result.rotated.length} keys found in the git history of "${name}" were successfully rotated: ${keys}`);
     }
     if (!automatic && summary.files === 0 && summary.historyOnly === 0) {
         vscode.window.showInformationMessage(`No potential secrets were found in "${name}".`);

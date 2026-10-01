@@ -224,7 +224,7 @@ describe('staged', () => {
 })
 
 describe('history', () => {
-  test('finds secrets that were deleted but remain in history', async () => {
+  test('a secret gone from the code and .env counts as rotated, not a finding', async () => {
     write('config.js', 'module.exports = {}\n')
     commit('init')
     write('config.js', `module.exports = { key: "${AWS_KEY}" }\n`)
@@ -232,17 +232,60 @@ describe('history', () => {
     write('config.js', 'module.exports = { key: process.env.KEY }\n')
     commit('remove key')
 
-    assert.equal((await run('scan')).code, 0, 'the working tree is clean')
+    const { code, out } = await run('history', '--format', 'json')
+    assert.equal(code, 0)
+    const report = JSON.parse(out)
+    assert.deepEqual(report.findings, [])
+    assert.equal(report.rotated[0].ruleId, 'aws-access-key-id')
+    assert.equal(report.rotated[0].status, 'rotated')
+    assert.equal(report.rotated[0].commit.sha, leaked)
+
+    const text = await run('history')
+    assert.match(text.out, /Key AKIA…BZP was successfully rotated!/)
+    assert.match(text.out, /0 findings/)
+  })
+
+  test('a secret moved into a gitignored .env is still reported', async () => {
+    write('.gitignore', '.env\n')
+    write('config.js', `module.exports = { key: "${AWS_KEY}" }\n`)
+    commit('add key')
+    write('config.js', 'module.exports = { key: process.env.KEY }\n')
+    write('.env', `KEY=${AWS_KEY}\n`)
+    commit('move to .env')
 
     const { code, out } = await run('history', '--format', 'json')
     assert.equal(code, 1)
     const [finding] = JSON.parse(out).findings
-    assert.equal(finding.ruleId, 'aws-access-key-id')
     assert.equal(finding.status, 'history-only')
-    assert.equal(finding.commit.sha, leaked)
 
     const text = await run('history')
     assert.match(text.out, /deleted from the code, but still in git history/)
+  })
+
+  test('an encrypted .env stops the history scan', async () => {
+    write('.gitignore', '.env.enc\n')
+    write('config.js', `module.exports = { key: "${AWS_KEY}" }\n`)
+    commit('add key')
+    write('config.js', 'module.exports = { key: process.env.KEY }\n')
+    write('.env.enc', 'c2FsdA==:aXY=:Y2lwaGVy\n')
+    commit('remove key')
+
+    const { code, out, err } = await run('history')
+    assert.equal(code, 2)
+    assert.equal(out, '')
+    assert.match(err, /Encrypted \.env was detected, please decrypt it before starting the scan \(\.env\.enc\)/)
+  })
+
+  test('a secret moved to another file is still present', async () => {
+    write('a.js', `k = "${AWS_KEY}"\n`)
+    commit('add key')
+    write('a.js', 'k = require("./b")\n')
+    write('b.js', `module.exports = "${AWS_KEY}"\n`)
+    commit('move key')
+
+    const { out } = await run('history', '--format', 'json')
+    const findings = JSON.parse(out).findings
+    assert.deepEqual(findings.map(f => [f.file, f.status]), [['a.js', 'present'], ['b.js', 'present']])
   })
 
   test('reports the commit that introduced a secret still in the code', async () => {
@@ -390,9 +433,18 @@ describe('commit anyway (GUI override)', () => {
       commit('move')
       const res = await scanRepository(repo)
       assert.deepEqual(res.files.map(f => [f.file, f.ruleId]), [['b.js', 'github-token']])
-      const byRule = Object.fromEntries(res.history.map(h => [h.ruleId, h.status]))
-      assert.deepEqual(byRule, { 'aws-access-key-id': 'history-only', 'github-token': 'present' })
+      assert.deepEqual(res.history.map(h => [h.ruleId, h.status]), [['github-token', 'present']])
+      assert.deepEqual(res.rotated.map(h => [h.ruleId, h.status]), [['aws-access-key-id', 'rotated']])
       assert.equal(res.cancelled, false)
+    })
+
+    test('refuses to run when there is an encrypted .env', async () => {
+      write('a.js', `k = "${AWS_KEY}"\n`)
+      write('config/.env.enc', 'c2FsdA==:aXY=:Y2lwaGVy\n')
+      commit()
+      await assert.rejects(scanRepository(repo), { code: 'ENCRYPTED_ENV', file: 'config/.env.enc' })
+      const res = await scanRepository(repo, { history: false })
+      assert.equal(res.files.length, 1, 'a working-tree-only scan does not need the .env')
     })
 
     test('works in a brand-new repository with no commits', async () => {
