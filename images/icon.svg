@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1600" width="256" height="256">
+  <!-- "//" in JetBrains Mono Nerd Font Bold, converted to outlines -->
+  <rect width="1600" height="1600" rx="288" fill="#1E1E1E"/>
+  <g fill="#6A9955">
+    <path transform="translate(150 1160) scale(1 -1)" d="M60 -110 410 830H540L190 -110Z"/>
+    <path transform="translate(800 1160) scale(1 -1)" d="M60 -110 410 830H540L190 -110Z"/>
+  </g>
+  <!-- Hollow block cursor around the second slash -->
+  <rect x="775" y="245" width="650" height="1110" fill="none" stroke="#AEAFAD" stroke-width="50"/>
+</svg>

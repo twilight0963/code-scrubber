@@ -106,7 +106,8 @@
     "test:unit": "node --test \"core/test/**/*.test.js\" \"cli/test/**/*.test.js\"",
     "pretest": "npm run lint && npm run test:unit",
     "test": "vscode-test",
-    "scan": "node bin/code-scrubber.js scan"
+    "scan": "node bin/code-scrubber.js scan",
+    "package": "mkdir -p build && vsce package --out build/"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
@@ -120,5 +121,10 @@
   "dependencies": {
     "is-gibberish": "^0.1.0"
   },
-  "publisher": "twilight0963"
+  "publisher": "twilight0963",
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#1E1E1E",
+    "theme": "dark"
+  }
 }

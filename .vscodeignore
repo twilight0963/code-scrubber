@@ -11,3 +11,5 @@ vsc-extension-quickstart.md
 core/test/**
 cli/test/**
 .pre-commit-hooks.yaml
+build/**
+images/icon.svg
