@@ -33,7 +33,7 @@ const CONFIDENCE_RANK = { high: 3, medium: 2, low: 1 }
 // minified/generated files and binaries.
 const SKIP_DIRS = /(?:^|[\\/])(?:node_modules|\.git|\.vscode-test|__pycache__|\.venv|venv|\.tox|\.mypy_cache)(?:[\\/]|$)/
 const SKIP_FILES = /(?:^|[\\/])(?:package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|bun\.lockb|Cargo\.lock|poetry\.lock|Pipfile\.lock|composer\.lock|Gemfile\.lock|go\.sum|packages\.lock\.json)$/
-const SKIP_EXTENSIONS = /\.(?:min\.js|min\.css|map|exe|dll|so|dylib|class|jar|o|out|bin|pyc|dmg|iso|zip|gz|tgz|bz2|xz|7z|rar|vsix|png|jpe?g|gif|bmp|ico|webp|svgz|pdf|woff2?|ttf|otf|eot|mp3|mp4|mov|avi|wav|sqlite|db)$/i
+const SKIP_EXTENSIONS = /\.(?:min\.js|min\.css|map|h|hpp|pch|gch|exe|dll|so|dylib|a|lib|obj|wasm|node|pdb|class|jar|o|out|bin|pyc|dmg|iso|zip|gz|tgz|bz2|xz|7z|rar|vsix|png|jpe?g|gif|bmp|ico|webp|svgz|pdf|woff2?|ttf|otf|eot|mp3|mp4|mov|avi|wav|sqlite|db)$/i
 
 function shouldSkipPath(filePath) {
   if (!filePath) return false
@@ -144,7 +144,7 @@ function scanText(text, options = {}) {
         if (looksLikeWord(secret)) continue
         if (secret.toLowerCase().includes(key.toLowerCase())) continue
       }
-      add(rule, start, end, secret)
+      add({ ...rule, ...rule.classify?.(secret) }, start, end, secret)
     }
   }
 
@@ -180,8 +180,11 @@ function scanText(text, options = {}) {
     }
   }
 
-  // Keep the most confident finding when ranges overlap.
+  // When ranges overlap, a recognised format beats the generic rules (even a
+  // low-confidence one such as a Supabase anon key), then the most confident wins.
+  const isGeneric = c => c.provider === 'generic'
   candidates.sort((a, b) =>
+    isGeneric(a) - isGeneric(b) ||
     CONFIDENCE_RANK[b.confidence] - CONFIDENCE_RANK[a.confidence] || (b.end - b.start) - (a.end - a.start))
   const kept = []
   for (const c of candidates) {

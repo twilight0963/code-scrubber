@@ -19,6 +19,14 @@ const FAKE = {
   random: j('q8Zt3Lk9Vx2Mn7', 'Rp4Ws6Yb1Hc5')
 }
 
+// Signature has no - or _, so the whole token looks like a dotted identifier.
+function fakeJwt(claims) {
+  const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url')
+  return [b64({ alg: 'HS256', typ: 'JWT' }), b64(claims), j('Qx7vK2pLm9RtYw3Zb', 'N8sHcJf4DgEaU1oVi6XyTn0Wq5')].join('.')
+}
+
+const supabaseJwt = role => fakeJwt({ iss: 'supabase', ref: 'qwkzpmdhrtlbnvcxyjsf', role, iat: 1700000000, exp: 2000000000 })
+
 function scan(text, filePath = 'app.js') {
   return scanText(text, { filePath })
 }
@@ -137,6 +145,10 @@ describe('high-entropy strings', () => {
     ['git commit SHA', '"0e4ed7e0fe84b6879532ce29fdfe397c1fc205d0"'],
     ['hex-encoded text', '"7468697320697320612074c3a97374"'],
     ['npm alias', '"npm:wrap-ansi@^7.0.0"'],
+    ['versioned import', 'import { Slot } from "@radix-ui/react-slot@1.1.2"'],
+    ['versioned package', '"react-day-picker@8.10.1"'],
+    ['Firebase app ID', `appId: '${j('1:482916305734:', 'android:9f3b2c7d1e4a6b8c0d5e7f')}'`],
+    ['Google OAuth client ID', `"client_id": "${j('482916305734-k3j9d8s7f6g5h4j3k2l1m0n9b8v7c6x5', '.apps.googleusercontent.com')}"`],
     ['data URI', '"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAA"'],
     ['regex', '"a/(0{2}[1-9]|0[1-9][0-9]|[12][0-9]{2}|300)/b"'],
     ['URL with example credentials', '"https://a:b@xn--g6w251d/?abc#foo"'],
@@ -181,6 +193,47 @@ describe('ignore comments', () => {
   })
 })
 
+describe('JWTs and Supabase keys', () => {
+  test('a JWT made only of letters and digits is still reported', () => {
+    const token = fakeJwt({ sub: 'user', iat: 1700000000 })
+    assert.match(token, /^[A-Za-z0-9.]+$/)
+    const [f] = scan(`const t = "${token}"`)
+    assert.equal(f.ruleId, 'jwt')
+    assert.equal(f.confidence, 'medium')
+  })
+
+  test('Supabase service_role key is high confidence', () => {
+    const [f] = scan(`const key = "${supabaseJwt('service_role')}"`)
+    assert.equal(f.ruleId, 'supabase-service-role-key')
+    assert.equal(f.provider, 'supabase')
+    assert.equal(f.confidence, 'high')
+  })
+
+  test('Supabase anon key is low confidence, even under a secret-looking name', () => {
+    for (const text of [`export const publicAnonKey = "${supabaseJwt('anon')}"`, `createClient(url, { apiKey: "${supabaseJwt('anon')}" })`]) {
+      const findings = scan(text)
+      assert.deepEqual(findings.map(f => [f.ruleId, f.confidence]), [['supabase-anon-key', 'low']])
+    }
+  })
+
+  test('JWTs from other issuers stay generic', () => {
+    const [f] = scan(`t = "${fakeJwt({ iss: 'https://auth.example2.com', role: 'service_role' })}"`)
+    assert.equal(f.ruleId, 'jwt')
+  })
+
+  test('Supabase secret key is high confidence', () => {
+    const [f] = scan(`const key = "${j('sb_secret_', 'Kx9mP2vQ7rTz4LwN8bYc3A_fH1jD6sG')}"`)
+    assert.equal(f.ruleId, 'supabase-secret-key')
+    assert.equal(f.confidence, 'high')
+  })
+
+  test('Supabase publishable key is low confidence', () => {
+    const [f] = scan(`const key = "${j('sb_publishable_', 'Kx9mP2vQ7rTz4LwN8bYc3A_fH1jD6sG')}"`)
+    assert.equal(f.ruleId, 'supabase-publishable-key')
+    assert.equal(f.confidence, 'low')
+  })
+})
+
 describe('overlaps', () => {
   test('a known format wins over the generic rules on the same value', () => {
     assert.deepEqual(ids(`api_key = "${FAKE.github}"`), ['github-token'])
@@ -194,6 +247,8 @@ describe('skipped paths', () => {
     'dist/app.min.js',
     'dist/app.js.map',
     'assets/logo.png',
+    'include/resources.h',
+    'build/module.wasm',
     '/repo/.git/config',
     'C:\\repo\\node_modules\\x.js'
   ]

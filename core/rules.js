@@ -5,7 +5,32 @@
 // confidence:
 //   high   - distinctive prefix/format, almost never a false positive
 //   medium - context-based (a "password = ..." style assignment)
-//   low    - generic high-entropy string, handled in scanner.js
+//   low    - public-by-design keys, and generic high-entropy strings (scanner.js)
+//
+// A rule may define classify(secret), returning overrides for id, name,
+// provider and confidence when the secret itself says what it is.
+
+function decodeJwtPayload(token) {
+  try {
+    return JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
+  } catch {
+    return null
+  }
+}
+
+// Supabase's legacy API keys are JWTs whose `role` claim decides what they
+// can do: `service_role` bypasses Row Level Security, `anon` is public by design.
+function classifyJwt(token) {
+  const claims = decodeJwtPayload(token)
+  if (typeof claims?.iss !== 'string' || !claims.iss.startsWith('supabase')) return null
+  if (claims.role === 'service_role') {
+    return { id: 'supabase-service-role-key', name: 'Supabase Service Role Key', provider: 'supabase', confidence: 'high' }
+  }
+  if (claims.role === 'anon') {
+    return { id: 'supabase-anon-key', name: 'Supabase Anon Key', provider: 'supabase', confidence: 'low' }
+  }
+  return null
+}
 
 const rules = [
   {
@@ -121,7 +146,23 @@ const rules = [
     name: 'JSON Web Token',
     provider: 'jwt',
     confidence: 'medium',
-    regex: /\b(eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})(?![A-Za-z0-9_-])/g
+    regex: /\b(eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})(?![A-Za-z0-9_-])/g,
+    classify: classifyJwt
+  },
+  {
+    id: 'supabase-secret-key',
+    name: 'Supabase Secret Key',
+    provider: 'supabase',
+    confidence: 'high',
+    regex: /\b(sb_secret_[A-Za-z0-9_-]{20,})(?![A-Za-z0-9_-])/g
+  },
+  {
+    // Meant to ship in client code; only safe with Row Level Security enabled.
+    id: 'supabase-publishable-key',
+    name: 'Supabase Publishable Key',
+    provider: 'supabase',
+    confidence: 'low',
+    regex: /\b(sb_publishable_[A-Za-z0-9_-]{20,})(?![A-Za-z0-9_-])/g
   },
   {
     id: 'connection-string-password',

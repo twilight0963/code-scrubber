@@ -30,10 +30,25 @@ function isReference(value) {
   return /^(?:process\.env|os\.environ|os\.getenv|env\(|getenv|System\.getenv|ENV\[|secrets\.|vault:|arn:aws:secretsmanager)/i.test(value)
 }
 
+// header.payload.signature, where header and payload are base64url JSON ("eyJ" = '{"').
+const JWT = /^eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/
+
+function isJwt(value) {
+  return JWT.test(value)
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 function isUuid(value) {
   return UUID.test(value)
+}
+
+// Public app identifiers that Firebase config files (google-services.json,
+// GoogleService-Info.plist, firebase_options.dart) ship with every app:
+// 1:1234567890:android:abc123..., 1234567890-abc.apps.googleusercontent.com
+function isPublicAppId(value) {
+  return /^\d+:\d+:(?:android|ios|web):[0-9a-f]+$/i.test(value) ||
+    /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/i.test(value)
 }
 
 function isPathLike(value) {
@@ -58,11 +73,14 @@ function isCodeLiteral(value) {
   if (/^#[0-9a-f]{3,8}$/i.test(value)) return true
   // 1.2.3, v1.2.3, ^8.0.2, >=1.0.0
   if (/^[\^~<>=]*v?\d+\.\d+(?:\.\d+)?/.test(value)) return true
-  if (/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*){2,}$/i.test(value)) return true
+  // (A JWT without - or _ has the same shape, so it is excluded.)
+  if (/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*){2,}$/i.test(value) && !isJwt(value)) return true
   // Integrity hashes in lockfiles and HTML: sha512-...
   if (/^sha(?:1|256|384|512)-/.test(value)) return true
   // data: URIs and package specifiers such as npm:wrap-ansi@^7.0.0
   if (/^(?:data|npm|git|github|file|link|workspace|jsr):/i.test(value)) return true
+  // Versioned package specifiers: react@18.2.0, @radix-ui/react-slot@1.1.2
+  if (/^(?:@[\w.-]+\/)?[\w.-]+@[\^~<>=]*v?\d+\.\d+[\w.+-]*$/.test(value)) return true
   // Template or shell interpolation: the value is built at runtime
   if (value.includes('${')) return true
   return false
@@ -98,7 +116,7 @@ function hasCodeCharacters(value) {
 function isFalsePositive(value, confidence) {
   if (isPlaceholder(value) || isReference(value)) return true
   if (confidence === 'high') return false
-  if (isUuid(value) || isPathLike(value) || isPlainUrl(value) || isCodeLiteral(value)) return true
+  if (isUuid(value) || isPublicAppId(value) || isPathLike(value) || isPlainUrl(value) || isCodeLiteral(value)) return true
   if (confidence === 'medium') return false
   // Low confidence (entropy only): also drop hashes, encoded text, any URL and code
   return isHash(value) || isHexEncodedText(value) || /^[a-z][a-z0-9+.-]*:\/\//i.test(value) || hasCodeCharacters(value)
@@ -107,7 +125,9 @@ function isFalsePositive(value, confidence) {
 module.exports = {
   isPlaceholder,
   isReference,
+  isJwt,
   isUuid,
+  isPublicAppId,
   isPathLike,
   isPlainUrl,
   isCodeLiteral,
