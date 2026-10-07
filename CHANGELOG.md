@@ -4,6 +4,27 @@ All notable changes to the "code-scrubber" extension will be documented in this 
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.0.3] - 2026-10-07
+
+### Added
+
+- **Supabase keys:**
+  - Secret keys (`sb_secret_…`) are reported with **high** confidence.
+  - Legacy JWT keys are recognised by their `role` claim: `service_role` keys, which bypass Row Level Security, are **high** confidence; `anon` keys are **low**, since they are meant to ship in client code.
+  - Publishable keys (`sb_publishable_…`) are reported with **low** confidence.
+- C/C++ headers (`.h`, `.hpp`), precompiled headers and more binary formats (`.a`, `.lib`, `.obj`, `.wasm`, `.node`, `.pdb`) are no longer scanned.
+
+### Changed
+
+- When findings overlap, a known credential format now wins over the generic rules even if it has lower confidence. For example, `apiKey: "<Supabase anon key>"` is reported as a low-confidence anon key instead of a medium-confidence secret assignment.
+
+### Fixed
+
+- JSON Web Tokens made only of letters and digits were mistaken for dotted identifiers (like `com.example.app`) and not reported.
+- Fewer false positives:
+  - Versioned package specifiers such as `@radix-ui/react-slot@1.1.2`.
+  - Firebase app IDs and Google OAuth client IDs, found in `google-services.json`, `GoogleService-Info.plist` and `firebase_options.dart`.
+
 ## [2.0.1] - 2026-10-05
 
 ### Added
@@ -16,7 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 - **New `.env.enc` encryption format.** Encrypted `.env` files now use AES-256-GCM with a random salt per file, replacing AES-256-CBC with a fixed salt. A wrong password or a modified file is now detected instead of producing garbage.
 
-  **Files encrypted with 1.x cannot be decrypted by 2.0.0**, and there is no automatic conversion. Before upgrading, run *Decrypt .env.enc file* in 1.x, then encrypt again after upgrading.
+  **Files encrypted with 1.x cannot be decrypted by 2.0.0**, and there is no automatic conversion. Before upgrading, run _Decrypt .env.enc file_ in 1.x, then encrypt again after upgrading.
 
   If you already upgraded, run this in the folder containing `.env.enc` (replace `your-password`) to recover your `.env`, then encrypt it again:
 
@@ -36,7 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
   - Also works with the [pre-commit](https://pre-commit.com) framework.
 - **Scan repository for secrets** command, also a 🔍 button in the Source Control view. It scans every file, including ones that aren't open, and the git history. It also runs after the hook is installed.
   - Secrets found in history show the commit that introduced them and whether they are still in the code.
-  - A key found in history that is no longer in the code or any `.env` file is treated as rotated: the scan shows *"Key AKIA…XYZ was successfully rotated!"* instead of a warning.
+  - A key found in history that is no longer in the code or any `.env` file is treated as rotated: the scan shows _"Key AKIA…XYZ was successfully rotated!"_ instead of a warning.
   - If the repository has an encrypted `.env.enc`, the history scan stops and asks you to decrypt it first, since otherwise there's no way to tell whether a leaked key is still in use.
 - **Command line tool** (`code-scrubber`) that works without VS Code:
   - `scan` (files), `staged` (what you're about to commit), `history` (every commit, or a `--range`) and `install-hook`.
